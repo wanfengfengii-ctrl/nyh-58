@@ -8,7 +8,27 @@ export const DEFAULT_CONFIG: RaftConfig = {
   tubeDensity: 350,
   waterDensity: 1000,
   waterFlowSpeed: 1.5,
+  waterFlowMode: 'steady',
+  pulseIntensity: 2,
+  pulseFrequency: 0.5,
 };
+
+export const STORAGE_KEYS = {
+  SAVED_SCHEMES: 'raft_simulator_schemes',
+  PLAYBACKS: 'raft_simulator_playbacks',
+  SETTINGS: 'raft_simulator_settings',
+} as const;
+
+export const PHYSICS_CONSTANTS = {
+  GRAVITY: 9.81,
+  WATER_DRAG_COEFFICIENT: 0.47,
+  RAFT_DRAG_COEFFICIENT: 1.1,
+  CARGO_FRICTION_COEFFICIENT: 0.6,
+  ANGULAR_DAMPING: 0.95,
+  LINEAR_DAMPING: 0.9,
+  MAX_ANGLE: Math.PI / 6,
+  BUOYANCY_DAMPING: 0.98,
+} as const;
 
 export const DEFAULT_CARGOS: Cargo[] = [
   {

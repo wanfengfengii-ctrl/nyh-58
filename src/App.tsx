@@ -58,6 +58,7 @@ function App() {
   }>>([]);
   const [playbackCargos, setPlaybackCargos] = useState<Cargo[] | null>(null);
   const [playbackFrame, setPlaybackFrame] = useState<PlaybackFrame | null>(null);
+  const [physicsCargos, setPhysicsCargos] = useState<Cargo[] | null>(null);
 
   const [sailingReport, setSailingReport] = useState<SailingReport | null>(null);
   const [loadingSuggestions, setLoadingSuggestions] = useState<LoadingSuggestion[]>([]);
@@ -188,6 +189,15 @@ function App() {
       const state = physicsEngineRef.current.getState();
       setPhysicsState(state);
 
+      const updatedCargos = cargos.map((cargo) => {
+        const cp = state.cargosPhysics.find((c) => c.cargoId === cargo.id);
+        if (cp) {
+          return { ...cargo, x: cp.x, y: cp.y };
+        }
+        return cargo;
+      });
+      setPhysicsCargos(updatedCargos);
+
       if (isRecording && playbackManager.getState().isRecording) {
         const raftBody = physicsEngineRef.current.getRaftBody();
         const frame: PlaybackFrame = {
@@ -197,15 +207,12 @@ function App() {
             y: raftBody?.position.y ?? 0,
             angle: raftBody?.angle ?? 0,
           },
-          cargos: cargos.map((cargo) => {
-            const body = physicsEngineRef.current?.getCargoBody(cargo.id);
-            return {
-              id: cargo.id,
-              x: body?.position.x ?? cargo.x,
-              y: body?.position.y ?? cargo.y,
-              angle: body?.angle ?? 0,
-            };
-          }),
+          cargos: state.cargosPhysics.map((cp) => ({
+            id: cp.cargoId,
+            x: cp.x,
+            y: cp.y,
+            angle: cp.angle,
+          })),
           waterLevel: state.waterLevel,
         };
         playbackManager.recordFrame(frame);
@@ -282,6 +289,7 @@ function App() {
     setPhysicsRunning(false);
     setPhysicsState(null);
     setIsRecording(false);
+    setPhysicsCargos(null);
     playbackManager.stopPlayback();
     setPlaybackState(playbackManager.getState());
     setPlaybackCargos(null);
@@ -428,7 +436,7 @@ function App() {
     setPlaybackFrame(null);
   }, []);
 
-  const displayCargos = playbackCargos ?? cargos;
+  const displayCargos = playbackCargos ?? physicsCargos ?? cargos;
   const displayRaftAngle = playbackFrame?.raft.angle ?? physicsState?.raftAngle ?? 0;
   const displayWaterLevel = playbackFrame?.waterLevel ?? physicsState?.waterLevel ?? 0;
   const displayDraftDepth = physicsState?.dynamicDraftDepth ?? buoyancy.draftDepth;

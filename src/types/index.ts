@@ -46,6 +46,9 @@ export interface PhysicsState {
 
 export interface CargoPhysicsState {
   cargoId: string;
+  x: number;
+  y: number;
+  angle: number;
   velocityX: number;
   velocityY: number;
   angularVelocity: number;

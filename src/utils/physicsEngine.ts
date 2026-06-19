@@ -364,6 +364,9 @@ export class RaftPhysicsEngine {
       if (!body) {
         return {
           cargoId: cargo.id,
+          x: cargo.x,
+          y: cargo.y,
+          angle: 0,
           velocityX: 0,
           velocityY: 0,
           angularVelocity: 0,
@@ -375,6 +378,9 @@ export class RaftPhysicsEngine {
       const slipState = this.checkCargoSlipping(body);
       return {
         cargoId: cargo.id,
+        x: body.position.x,
+        y: body.position.y,
+        angle: body.angle,
         velocityX: body.velocity.x,
         velocityY: body.velocity.y,
         angularVelocity: body.angularVelocity,

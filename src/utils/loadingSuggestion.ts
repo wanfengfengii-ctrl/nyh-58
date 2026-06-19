@@ -232,21 +232,26 @@ export function generateLoadingSuggestions(
     const dims = calculateRaftDimensions(config);
     const halfW = cargo.width / 2;
     const halfH = cargo.height / 2;
-    
+    const margin = 0.1;
+    const inwardShift = Math.max(dims.width * 0.15, 0.15);
+    const inwardShiftY = Math.max(dims.height * 0.1, 0.1);
+
     let toX = cargo.x;
     let toY = cargo.y;
-    
-    if (cargo.x < 0) {
-      toX = Math.min(cargo.x + dims.width * 0.15, -halfW - 5);
-    } else {
-      toX = Math.max(cargo.x - dims.width * 0.15, halfW + 5);
+
+    if (cargo.x - halfW - dims.left < dims.width * 0.15) {
+      toX = Math.min(cargo.x + inwardShift, dims.right - halfW - margin);
     }
-    if (cargo.y < 0) {
-      toY = Math.min(cargo.y + dims.height * 0.1, -halfH - 5);
-    } else {
-      toY = Math.max(cargo.y - dims.height * 0.1, halfH + 5);
+    if (dims.right - (cargo.x + halfW) < dims.width * 0.15) {
+      toX = Math.max(cargo.x - inwardShift, dims.left + halfW + margin);
     }
-    
+    if (cargo.y - halfH - dims.top < dims.height * 0.15) {
+      toY = Math.min(cargo.y + inwardShiftY, dims.bottom - halfH - margin);
+    }
+    if (dims.bottom - (cargo.y + halfH) < dims.height * 0.15) {
+      toY = Math.max(cargo.y - inwardShiftY, dims.top + halfH + margin);
+    }
+
     suggestions.push({
       id: generateId(),
       type: 'position',

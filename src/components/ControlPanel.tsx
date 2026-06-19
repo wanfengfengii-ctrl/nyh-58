@@ -3,6 +3,7 @@ import {
   Paper,
   Title,
   NumberInput,
+  TextInput,
   Slider,
   Group,
   Button,
@@ -298,11 +299,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             <Title order={5}>编辑货物: {selectedCargo.name}</Title>
           </Group>
           <Stack gap="sm">
-            <NumberInput
+            <TextInput
               label="名称"
               value={selectedCargo.name}
-              onChange={(v) =>
-                updateCargo(selectedCargo.id, { name: String(v || '') })
+              onChange={(e) =>
+                updateCargo(selectedCargo.id, { name: e.currentTarget.value })
               }
               size="sm"
             />

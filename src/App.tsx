@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   AppShell,
   Title,
@@ -12,7 +12,7 @@ import { IconShip } from '@tabler/icons-react';
 import type { RaftConfig, Cargo, SavedScheme } from './types';
 import { DEFAULT_CONFIG, DEFAULT_CARGOS } from './constants';
 import { calculateBuoyancy, calculateStability, validateConfig, validateCargos } from './utils/physics';
-import { clampCargoToBounds } from './utils/raftGeometry';
+import { clampCargoToBounds, clampAllCargosToBounds, areAllCargosWithinBounds, getOutOfBoundsCargos } from './utils/raftGeometry';
 import { RaftTopView } from './components/RaftTopView';
 import { ControlPanel } from './components/ControlPanel';
 import { DataPanel } from './components/DataPanel';
@@ -25,20 +25,44 @@ function App() {
   const [selectedCargoId, setSelectedCargoId] = useState<string | null>(null);
   const [savedSchemes, setSavedSchemes] = useState<SavedScheme[]>([]);
 
+  useEffect(() => {
+    setCargos((prev) => clampAllCargosToBounds(prev, config));
+  }, [config.tubeCount, config.tubeDiameter, config.tubeLength, config.tubeSpacing]);
+
   const buoyancy = useMemo(
     () => calculateBuoyancy(config, cargos),
     [config, cargos]
   );
 
   const stability = useMemo(
-    () => calculateStability(config, cargos, buoyancy),
+    () => {
+      const baseStability = calculateStability(config, cargos, buoyancy);
+      const allInBounds = areAllCargosWithinBounds(cargos, config);
+      return {
+        ...baseStability,
+        isSailable: baseStability.isSailable && allInBounds,
+      };
+    },
     [config, cargos, buoyancy]
   );
 
-  const configErrors = useMemo(
-    () => [...validateConfig(config), ...validateCargos(cargos)],
-    [config, cargos]
+  const allCargosInBounds = useMemo(
+    () => areAllCargosWithinBounds(cargos, config),
+    [cargos, config]
   );
+
+  const outOfBoundsCargos = useMemo(
+    () => getOutOfBoundsCargos(cargos, config),
+    [cargos, config]
+  );
+
+  const configErrors = useMemo(() => {
+    const errors = [...validateConfig(config), ...validateCargos(cargos)];
+    if (!allCargosInBounds) {
+      errors.push(`以下货物超出竹筏边界：${outOfBoundsCargos.join('、')}`);
+    }
+    return errors;
+  }, [config, cargos, allCargosInBounds, outOfBoundsCargos]);
 
   const isValid = configErrors.length === 0;
 

@@ -1,4 +1,4 @@
-import type { RaftConfig, RaftDimensions, BambooTube } from '../types';
+import type { RaftConfig, RaftDimensions, BambooTube, Cargo } from '../types';
 
 const GRAVITY = 9.81;
 
@@ -88,8 +88,63 @@ export function clampCargoToBounds(
   const halfW = cargoWidth / 2;
   const halfH = cargoHeight / 2;
   
-  const x = Math.max(dims.left + halfW, Math.min(dims.right - halfW, cargoX));
-  const y = Math.max(dims.top + halfH, Math.min(dims.bottom - halfH, cargoY));
+  let x = 0;
+  let y = 0;
+  
+  if (cargoWidth >= dims.width) {
+    x = 0;
+  } else {
+    x = Math.max(dims.left + halfW, Math.min(dims.right - halfW, cargoX));
+  }
+  
+  if (cargoHeight >= dims.height) {
+    y = 0;
+  } else {
+    y = Math.max(dims.top + halfH, Math.min(dims.bottom - halfH, cargoY));
+  }
   
   return { x, y };
+}
+
+export function areAllCargosWithinBounds(
+  cargos: Cargo[],
+  config: RaftConfig
+): boolean {
+  return cargos.every((cargo) =>
+    isCargoWithinBounds(cargo.x, cargo.y, cargo.width, cargo.height, config)
+  );
+}
+
+export function clampAllCargosToBounds(
+  cargos: Cargo[],
+  config: RaftConfig
+): Cargo[] {
+  return cargos.map((cargo) => {
+    const clamped = clampCargoToBounds(
+      cargo.x,
+      cargo.y,
+      cargo.width,
+      cargo.height,
+      config
+    );
+    return { ...cargo, x: clamped.x, y: clamped.y };
+  });
+}
+
+export function getOutOfBoundsCargos(
+  cargos: Cargo[],
+  config: RaftConfig
+): string[] {
+  return cargos
+    .filter(
+      (cargo) =>
+        !isCargoWithinBounds(
+          cargo.x,
+          cargo.y,
+          cargo.width,
+          cargo.height,
+          config
+        )
+    )
+    .map((c) => c.name);
 }

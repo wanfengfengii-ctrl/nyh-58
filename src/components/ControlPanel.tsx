@@ -18,6 +18,7 @@ import {
 } from '@tabler/icons-react';
 import type { RaftConfig, Cargo } from '../types';
 import { CARGO_COLORS, generateCargoId } from '../constants';
+import { clampCargoToBounds, calculateRaftDimensions } from '../utils/raftGeometry';
 
 interface ControlPanelProps {
   config: RaftConfig;
@@ -41,16 +42,34 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   };
 
   const addCargo = () => {
+    const dims = calculateRaftDimensions(config);
+    const cargoWidth = 0.6;
+    const cargoHeight = 0.8;
+    
+    const maxX = Math.max(0, dims.width / 2 - cargoWidth / 2);
+    const maxY = Math.max(0, dims.height / 2 - cargoHeight / 2);
+    
     const newCargo: Cargo = {
       id: generateCargoId(),
       name: `货物${cargos.length + 1}`,
-      x: (Math.random() - 0.5) * 1,
-      y: (Math.random() - 0.5) * 2,
-      width: 0.6,
-      height: 0.8,
+      x: (Math.random() - 0.5) * Math.min(1, maxX * 2),
+      y: (Math.random() - 0.5) * Math.min(2, maxY * 2),
+      width: cargoWidth,
+      height: cargoHeight,
       weight: 200,
       color: CARGO_COLORS[cargos.length % CARGO_COLORS.length],
     };
+    
+    const clamped = clampCargoToBounds(
+      newCargo.x,
+      newCargo.y,
+      newCargo.width,
+      newCargo.height,
+      config
+    );
+    newCargo.x = clamped.x;
+    newCargo.y = clamped.y;
+    
     onCargosChange([...cargos, newCargo]);
     onSelectedCargoChange(newCargo.id);
   };
@@ -64,7 +83,20 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
   const updateCargo = (id: string, updates: Partial<Cargo>) => {
     onCargosChange(
-      cargos.map((c) => (c.id === id ? { ...c, ...updates } : c))
+      cargos.map((c) => {
+        if (c.id === id) {
+          const updated = { ...c, ...updates };
+          const clamped = clampCargoToBounds(
+            updated.x,
+            updated.y,
+            updated.width,
+            updated.height,
+            config
+          );
+          return { ...updated, x: clamped.x, y: clamped.y };
+        }
+        return c;
+      })
     );
   };
 

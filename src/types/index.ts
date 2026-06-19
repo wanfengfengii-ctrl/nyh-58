@@ -5,6 +5,59 @@ export type WaterCondition = 'calm' | 'ripple' | 'rapid' | 'torrent';
 export type WindCondition = 'calm' | 'breeze' | 'windy' | 'strong';
 export type RiskLevel = 'safe' | 'caution' | 'warning' | 'danger';
 
+export type TimeOfDay = 'day' | 'dusk' | 'night';
+
+export type LightingDeviceType = 'headlamp' | 'spotlight' | 'floodlight' | 'lantern';
+
+export interface LightingDevice {
+  id: string;
+  name: string;
+  type: LightingDeviceType;
+  intensity: number;
+  range: number;
+  angle: number;
+  x: number;
+  y: number;
+  color: string;
+  powerConsumption: number;
+}
+
+export interface NightNavigationConfig {
+  timeOfDay: TimeOfDay;
+  lightingDevices: LightingDevice[];
+  ambientLightLevel: number;
+  obstacleDensity: number;
+}
+
+export interface NightVisibilityResult {
+  overallVisibility: number;
+  forwardVisibility: number;
+  peripheralVisibility: number;
+  effectiveRange: number;
+  lightingCoverage: number;
+  cargoShadowEffect: number;
+}
+
+export interface NightObstacleRisk {
+  detectionProbability: number;
+  reactionTimeAvailable: number;
+  collisionRisk: 'low' | 'medium' | 'high' | 'critical';
+  obstacleCount: number;
+}
+
+export interface NightNavigationReport {
+  config: NightNavigationConfig;
+  visibility: NightVisibilityResult;
+  obstacleRisk: NightObstacleRisk;
+  safetyScore: number;
+  riskLevel: RiskLevel;
+  canSailAtNight: boolean;
+  warnings: WeatherWarning[];
+  recommendations: WeatherRecommendation[];
+  totalLightingIntensity: number;
+  summary: string;
+}
+
 export interface WeatherWaterConfig {
   weather: WeatherCondition;
   water: WaterCondition;
@@ -85,6 +138,7 @@ export interface RaftConfig {
   pulseIntensity: number;
   pulseFrequency: number;
   weatherWater: WeatherWaterConfig;
+  nightNavigation: NightNavigationConfig;
 }
 
 export interface PhysicsState {
@@ -222,6 +276,7 @@ export interface SavedScheme {
   buoyancy: BuoyancyResult;
   stability: StabilityResult;
   weatherReport: WeatherReport;
+  nightNavigationReport?: NightNavigationReport;
 }
 
 export interface RaftDimensions {

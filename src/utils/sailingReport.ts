@@ -1,6 +1,7 @@
-import type { RaftConfig, Cargo, BuoyancyResult, StabilityResult, SailingReport, SailingReason, WeatherReport } from '../types';
+import type { RaftConfig, Cargo, BuoyancyResult, StabilityResult, SailingReport, SailingReason, WeatherReport, NightNavigationReport } from '../types';
 import { isCargoWithinBounds } from './raftGeometry';
 import { calculateAdjustedFlowSpeed } from './weatherWater';
+import { TIME_OF_DAY_LABELS } from '../constants';
 
 export function generateSailingReport(
   config: RaftConfig,
@@ -8,10 +9,11 @@ export function generateSailingReport(
   buoyancy: BuoyancyResult,
   stability: StabilityResult,
   allInBounds: boolean,
-  weatherReport?: WeatherReport
+  weatherReport?: WeatherReport,
+  nightNavigationReport?: NightNavigationReport
 ): SailingReport {
   const reasons: SailingReason[] = [];
-  let score = 0;
+  let score: number;
 
   const adjustedFlowSpeed = weatherReport
     ? calculateAdjustedFlowSpeed(config.waterFlowSpeed, weatherReport.effects)
@@ -28,22 +30,27 @@ export function generateSailingReport(
     reasons.push(...analyzeWeatherConditions(weatherReport));
   }
 
+  if (nightNavigationReport) {
+    reasons.push(...analyzeNightConditions(nightNavigationReport));
+  }
+
   const errorCount = reasons.filter((r) => r.type === 'error').length;
   const warningCount = reasons.filter((r) => r.type === 'warning').length;
   const successCount = reasons.filter((r) => r.type === 'success').length;
 
-  score = Math.max(
-    0,
-    Math.min(
-      100,
-      successCount * 15 - errorCount * 30 - warningCount * 10 + stability.stabilityScore * 0.4
-    )
-  );
+  let baseScore = successCount * 15 - errorCount * 30 - warningCount * 10 + stability.stabilityScore * 0.4;
+  
+  if (nightNavigationReport) {
+    baseScore += nightNavigationReport.safetyScore * 0.2;
+  }
+
+  score = Math.max(0, Math.min(100, baseScore));
 
   const weatherCanSail = weatherReport ? weatherReport.canSail : true;
-  const canSail = errorCount === 0 && stability.isSailable && allInBounds && !buoyancy.isOverloaded && weatherCanSail;
+  const nightCanSail = nightNavigationReport ? nightNavigationReport.canSailAtNight : true;
+  const canSail = errorCount === 0 && stability.isSailable && allInBounds && !buoyancy.isOverloaded && weatherCanSail && nightCanSail;
 
-  const summary = generateSummary(canSail, errorCount, warningCount, buoyancy, stability);
+  const summary = generateSummary(canSail, errorCount, warningCount, buoyancy, stability, nightNavigationReport);
 
   return {
     canSail,
@@ -334,9 +341,14 @@ function generateSummary(
   errorCount: number,
   warningCount: number,
   buoyancy: BuoyancyResult,
-  stability: StabilityResult
+  stability: StabilityResult,
+  nightNavigationReport?: NightNavigationReport
 ): string {
   if (!canSail) {
+    if (nightNavigationReport && !nightNavigationReport.canSailAtNight) {
+      const timeLabel = TIME_OF_DAY_LABELS[nightNavigationReport.config.timeOfDay];
+      return `${timeLabel}航行条件不足，无法出航。${nightNavigationReport.visibility.overallVisibility < 0.2 ? '能见度过低，' : ''}请改善照明条件或等待白天。`;
+    }
     if (buoyancy.isOverloaded) {
       return '竹筏超载，无法出航。请减少货物重量或增加竹筒数量。';
     }
@@ -346,6 +358,14 @@ function generateSummary(
     if (!stability.isSailable) {
       return '稳定性不足，无法出航。请重新调整货物分布以改善平衡。';
     }
+  }
+
+  if (nightNavigationReport && nightNavigationReport.config.timeOfDay !== 'day') {
+    const timeLabel = TIME_OF_DAY_LABELS[nightNavigationReport.config.timeOfDay];
+    if (warningCount > 0) {
+      return `${timeLabel}可以出航，但存在 ${warningCount} 项警告。建议加强照明，谨慎驾驶。`;
+    }
+    return `${timeLabel}航行条件良好，可以安全出航。请保持警惕，注意航行安全。`;
   }
 
   if (warningCount > 0) {
@@ -432,6 +452,154 @@ function analyzeWeatherConditions(weatherReport: WeatherReport): SailingReason[]
       description: `当前浪高约 ${effects.waveHeight.toFixed(2)}m，${effects.waveHeight > 0.4 ? '可能导致竹筏倾覆' : '会影响竹筏稳定性'}。`,
       value: effects.waveHeight,
       threshold: 0.2,
+    });
+  }
+
+  return reasons;
+}
+
+function analyzeNightConditions(nightReport: NightNavigationReport): SailingReason[] {
+  const reasons: SailingReason[] = [];
+  const { visibility, obstacleRisk, config, totalLightingIntensity } = nightReport;
+  const timeLabel = TIME_OF_DAY_LABELS[config.timeOfDay];
+
+  reasons.push({
+    id: 'time-of-day',
+    type: config.timeOfDay === 'day' ? 'success' : config.timeOfDay === 'dusk' ? 'info' : 'warning',
+    title: `当前时段：${timeLabel}`,
+    description: `航行时段为${timeLabel}，${config.timeOfDay === 'day' ? '光线充足，能见度良好' : config.timeOfDay === 'dusk' ? '光线渐暗，需注意照明' : '夜色较深，依赖照明设备'}。`,
+    value: visibility.overallVisibility,
+    threshold: 0.5,
+  });
+
+  if (config.lightingDevices.length > 0) {
+    reasons.push({
+      id: 'lighting-equipment',
+      type: totalLightingIntensity > 100 ? 'success' : totalLightingIntensity > 50 ? 'info' : 'warning',
+      title: `照明设备：${config.lightingDevices.length} 台`,
+      description: `配备 ${config.lightingDevices.length} 台照明设备，总照明强度 ${totalLightingIntensity.toFixed(0)} 流明。`,
+      value: totalLightingIntensity,
+      threshold: 80,
+    });
+  } else if (config.timeOfDay !== 'day') {
+    reasons.push({
+      id: 'no-lighting',
+      type: 'error',
+      title: '无照明设备',
+      description: `${timeLabel}时段未配备任何照明设备，能见度极低，航行极度危险！`,
+      value: 0,
+      threshold: 1,
+    });
+  }
+
+  if (visibility.overallVisibility < 0.2) {
+    reasons.push({
+      id: 'night-visibility-critical',
+      type: 'error',
+      title: '夜间能见度极差',
+      description: `综合能见度仅 ${(visibility.overallVisibility * 100).toFixed(0)}%，无法看清前方障碍物，禁止出航！`,
+      value: visibility.overallVisibility,
+      threshold: 0.2,
+    });
+  } else if (visibility.overallVisibility < 0.4) {
+    reasons.push({
+      id: 'night-visibility-poor',
+      type: 'warning',
+      title: '夜间能见度较低',
+      description: `综合能见度为 ${(visibility.overallVisibility * 100).toFixed(0)}%，航行时需特别谨慎，建议减速慢行。`,
+      value: visibility.overallVisibility,
+      threshold: 0.4,
+    });
+  } else if (visibility.overallVisibility < 0.7) {
+    reasons.push({
+      id: 'night-visibility-moderate',
+      type: 'info',
+      title: '夜间能见度一般',
+      description: `综合能见度为 ${(visibility.overallVisibility * 100).toFixed(0)}%，基本满足航行需求。`,
+      value: visibility.overallVisibility,
+      threshold: 0.7,
+    });
+  } else {
+    reasons.push({
+      id: 'night-visibility-good',
+      type: 'success',
+      title: '夜间能见度良好',
+      description: `综合能见度为 ${(visibility.overallVisibility * 100).toFixed(0)}%，航行视野良好。`,
+      value: visibility.overallVisibility,
+      threshold: 0.7,
+    });
+  }
+
+  if (visibility.effectiveRange < 15 && config.timeOfDay !== 'day') {
+    reasons.push({
+      id: 'effective-range-short',
+      type: 'warning',
+      title: '有效视距过短',
+      description: `有效视距仅 ${visibility.effectiveRange.toFixed(0)} 米，反应时间不足，需大幅降低航速。`,
+      value: visibility.effectiveRange,
+      threshold: 15,
+    });
+  }
+
+  if (visibility.cargoShadowEffect > 0.15) {
+    reasons.push({
+      id: 'cargo-shadow-effect',
+      type: 'warning',
+      title: '货物遮挡照明',
+      description: `货物对照明的遮挡影响约为 ${(visibility.cargoShadowEffect * 100).toFixed(1)}%，建议优化货物布局。`,
+      value: visibility.cargoShadowEffect,
+      threshold: 0.15,
+    });
+  }
+
+  if (obstacleRisk.collisionRisk === 'critical') {
+    reasons.push({
+      id: 'collision-risk-critical',
+      type: 'error',
+      title: '碰撞风险极高',
+      description: '当前条件下碰撞风险为"极高"等级，障碍物探测概率极低，随时可能发生碰撞！',
+      value: obstacleRisk.detectionProbability,
+      threshold: 0.3,
+    });
+  } else if (obstacleRisk.collisionRisk === 'high') {
+    reasons.push({
+      id: 'collision-risk-high',
+      type: 'warning',
+      title: '碰撞风险较高',
+      description: '当前条件下碰撞风险为"较高"等级，需加强瞭望，谨慎驾驶。',
+      value: obstacleRisk.detectionProbability,
+      threshold: 0.5,
+    });
+  } else if (obstacleRisk.collisionRisk === 'medium') {
+    reasons.push({
+      id: 'collision-risk-medium',
+      type: 'info',
+      title: '碰撞风险中等',
+      description: '当前条件下碰撞风险为"中等"等级，航行时需保持警惕。',
+      value: obstacleRisk.detectionProbability,
+      threshold: 0.7,
+    });
+  }
+
+  if (!nightReport.canSailAtNight && config.timeOfDay !== 'day') {
+    reasons.push({
+      id: 'night-sailing-not-allowed',
+      type: 'error',
+      title: '夜间不可出航',
+      description: `${timeLabel}航行安全评分不足，不满足夜间出航条件。`,
+      value: nightReport.safetyScore,
+      threshold: 60,
+    });
+  }
+
+  if (nightReport.safetyScore >= 80) {
+    reasons.push({
+      id: 'night-safety-excellent',
+      type: 'success',
+      title: '夜航安全评分优秀',
+      description: `夜间航行安全评分为 ${nightReport.safetyScore} 分，夜航条件良好。`,
+      value: nightReport.safetyScore,
+      threshold: 80,
     });
   }
 

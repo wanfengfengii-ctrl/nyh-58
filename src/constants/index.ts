@@ -1,9 +1,16 @@
-import type { RaftConfig, Cargo, WeatherPreset, WeatherWaterConfig } from '../types';
+import type { RaftConfig, Cargo, WeatherPreset, WeatherWaterConfig, NightNavigationConfig, LightingDevice, TimeOfDay, LightingDeviceType } from '../types';
 
 export const DEFAULT_WEATHER_CONFIG: WeatherWaterConfig = {
   weather: 'sunny',
   water: 'calm',
   wind: 'calm',
+};
+
+export const DEFAULT_NIGHT_CONFIG: NightNavigationConfig = {
+  timeOfDay: 'day',
+  lightingDevices: [],
+  ambientLightLevel: 0.5,
+  obstacleDensity: 0.3,
 };
 
 export const DEFAULT_CONFIG: RaftConfig = {
@@ -18,6 +25,7 @@ export const DEFAULT_CONFIG: RaftConfig = {
   pulseIntensity: 2,
   pulseFrequency: 0.5,
   weatherWater: DEFAULT_WEATHER_CONFIG,
+  nightNavigation: DEFAULT_NIGHT_CONFIG,
 };
 
 export const STORAGE_KEYS = {
@@ -159,3 +167,72 @@ export const RISK_BORDER_COLORS: Record<string, string> = {
   warning: '#fab005',
   danger: '#fa5252',
 };
+
+export const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
+  day: '白天',
+  dusk: '黄昏',
+  night: '夜晚',
+};
+
+export const TIME_OF_DAY_ICONS: Record<TimeOfDay, string> = {
+  day: '☀️',
+  dusk: '🌅',
+  night: '🌙',
+};
+
+export const LIGHTING_DEVICE_LABELS: Record<LightingDeviceType, string> = {
+  headlamp: '头灯',
+  spotlight: '探照灯',
+  floodlight: '泛光灯',
+  lantern: '灯笼',
+};
+
+export const LIGHTING_DEVICE_COLORS: Record<LightingDeviceType, string> = {
+  headlamp: '#ffd43b',
+  spotlight: '#ff922b',
+  floodlight: '#fcc419',
+  lantern: '#ff6b6b',
+};
+
+export const DEFAULT_LIGHTING_DEVICES: LightingDevice[] = [
+  {
+    id: 'light-spotlight-front',
+    name: '前置探照灯',
+    type: 'spotlight',
+    intensity: 1.0,
+    range: 50,
+    angle: 25,
+    x: 0,
+    y: -2.5,
+    color: '#ff922b',
+    powerConsumption: 50,
+  },
+  {
+    id: 'light-lantern-left',
+    name: '左舷灯笼',
+    type: 'lantern',
+    intensity: 0.8,
+    range: 8,
+    angle: 360,
+    x: -1,
+    y: 0,
+    color: '#ff6b6b',
+    powerConsumption: 10,
+  },
+  {
+    id: 'light-lantern-right',
+    name: '右舷灯笼',
+    type: 'lantern',
+    intensity: 0.8,
+    range: 8,
+    angle: 360,
+    x: 1,
+    y: 0,
+    color: '#ff6b6b',
+    powerConsumption: 10,
+  },
+];
+
+export function generateLightingDeviceId(): string {
+  return `light-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}

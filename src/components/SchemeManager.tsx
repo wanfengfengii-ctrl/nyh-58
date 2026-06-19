@@ -23,8 +23,8 @@ import {
   IconFileDescription,
   IconGitCompare,
 } from '@tabler/icons-react';
-import type { SavedScheme, RaftConfig, Cargo, BuoyancyResult, StabilityResult, WeatherReport } from '../types';
-import { RISK_LABELS, RISK_COLORS } from '../constants';
+import type { SavedScheme, RaftConfig, Cargo, BuoyancyResult, StabilityResult, WeatherReport, NightNavigationReport } from '../types';
+import { RISK_LABELS, RISK_COLORS, TIME_OF_DAY_LABELS } from '../constants';
 
 interface SchemeManagerProps {
   schemes: SavedScheme[];
@@ -34,6 +34,7 @@ interface SchemeManagerProps {
   currentBuoyancy: BuoyancyResult;
   currentStability: StabilityResult;
   currentWeatherReport: WeatherReport;
+  currentNightNavigationReport?: NightNavigationReport;
   onLoadScheme: (scheme: SavedScheme) => void;
   isValid: boolean;
 }
@@ -46,6 +47,7 @@ export const SchemeManager: React.FC<SchemeManagerProps> = ({
   currentBuoyancy,
   currentStability,
   currentWeatherReport,
+  currentNightNavigationReport,
   onLoadScheme,
   isValid,
 }) => {
@@ -66,6 +68,7 @@ export const SchemeManager: React.FC<SchemeManagerProps> = ({
       buoyancy: { ...currentBuoyancy },
       stability: { ...currentStability },
       weatherReport: { ...currentWeatherReport },
+      nightNavigationReport: currentNightNavigationReport ? { ...currentNightNavigationReport } : undefined,
     };
 
     onSchemesChange([...schemes, newScheme]);
@@ -216,6 +219,15 @@ export const SchemeManager: React.FC<SchemeManagerProps> = ({
                       variant="light"
                     >
                       {RISK_LABELS[scheme.weatherReport.riskLevel]}
+                    </Badge>
+                  )}
+                  {scheme.nightNavigationReport && (
+                    <Badge
+                      size="sm"
+                      color={RISK_COLORS[scheme.nightNavigationReport.riskLevel]}
+                      variant="light"
+                    >
+                      {TIME_OF_DAY_LABELS[scheme.nightNavigationReport.config.timeOfDay]}
                     </Badge>
                   )}
                   <Badge
@@ -380,6 +392,116 @@ export const SchemeManager: React.FC<SchemeManagerProps> = ({
                       >
                         {s.weatherReport.riskScore.toFixed(0)} 分
                       </Badge>
+                    ) : (
+                      <Text size="xs" c="dimmed">未记录</Text>
+                    )}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td>航行时段</td>
+                {compareSchemes.map((s) => (
+                  <td key={s.id}>
+                    {s.nightNavigationReport ? (
+                      <Badge color={RISK_COLORS[s.nightNavigationReport.riskLevel]} variant="light">
+                        {TIME_OF_DAY_LABELS[s.nightNavigationReport.config.timeOfDay]}
+                      </Badge>
+                    ) : (
+                      <Text size="xs" c="dimmed">未记录</Text>
+                    )}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td>夜间能见度</td>
+                {compareSchemes.map((s) => (
+                  <td key={s.id}>
+                    {s.nightNavigationReport ? (
+                      <Badge
+                        color={s.nightNavigationReport.visibility.overallVisibility > 0.7 ? 'green' : s.nightNavigationReport.visibility.overallVisibility > 0.4 ? 'yellow' : 'red'}
+                      >
+                        {(s.nightNavigationReport.visibility.overallVisibility * 100).toFixed(0)}%
+                      </Badge>
+                    ) : (
+                      <Text size="xs" c="dimmed">未记录</Text>
+                    )}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td>有效视距</td>
+                {compareSchemes.map((s) => (
+                  <td key={s.id}>
+                    {s.nightNavigationReport ? (
+                      `${s.nightNavigationReport.visibility.effectiveRange.toFixed(0)} 米`
+                    ) : (
+                      <Text size="xs" c="dimmed">未记录</Text>
+                    )}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td>照明设备</td>
+                {compareSchemes.map((s) => (
+                  <td key={s.id}>
+                    {s.nightNavigationReport ? (
+                      `${s.nightNavigationReport.config.lightingDevices.length} 台`
+                    ) : (
+                      <Text size="xs" c="dimmed">未记录</Text>
+                    )}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td>碰撞风险</td>
+                {compareSchemes.map((s) => (
+                  <td key={s.id}>
+                    {s.nightNavigationReport ? (
+                      <Badge color={
+                        s.nightNavigationReport.obstacleRisk.collisionRisk === 'low' ? 'green' :
+                        s.nightNavigationReport.obstacleRisk.collisionRisk === 'medium' ? 'yellow' :
+                        s.nightNavigationReport.obstacleRisk.collisionRisk === 'high' ? 'orange' : 'red'
+                      }>
+                        {s.nightNavigationReport.obstacleRisk.collisionRisk === 'low' ? '低' :
+                         s.nightNavigationReport.obstacleRisk.collisionRisk === 'medium' ? '中' :
+                         s.nightNavigationReport.obstacleRisk.collisionRisk === 'high' ? '高' : '极高'}
+                      </Badge>
+                    ) : (
+                      <Text size="xs" c="dimmed">未记录</Text>
+                    )}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td>夜航安全分</td>
+                {compareSchemes.map((s) => (
+                  <td key={s.id}>
+                    {s.nightNavigationReport ? (
+                      <Badge
+                        color={s.nightNavigationReport.safetyScore > 70 ? 'green' : s.nightNavigationReport.safetyScore > 40 ? 'yellow' : 'red'}
+                      >
+                        {s.nightNavigationReport.safetyScore.toFixed(0)} 分
+                      </Badge>
+                    ) : (
+                      <Text size="xs" c="dimmed">未记录</Text>
+                    )}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td>夜间可出航</td>
+                {compareSchemes.map((s) => (
+                  <td key={s.id}>
+                    {s.nightNavigationReport ? (
+                      s.nightNavigationReport.canSailAtNight ? (
+                        <Badge color="green" leftSection={<IconCheck size={10} />}>
+                          是
+                        </Badge>
+                      ) : (
+                        <Badge color="red" leftSection={<IconX size={10} />}>
+                          否
+                        </Badge>
+                      )
                     ) : (
                       <Text size="xs" c="dimmed">未记录</Text>
                     )}

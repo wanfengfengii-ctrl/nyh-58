@@ -1,4 +1,4 @@
-import type { RaftConfig, Cargo, WeatherPreset, WeatherWaterConfig, NightNavigationConfig, LightingDevice, TimeOfDay, LightingDeviceType } from '../types';
+import type { RaftConfig, Cargo, WeatherPreset, WeatherWaterConfig, NightNavigationConfig, LightingDevice, TimeOfDay, LightingDeviceType, RiverZone, RiverZoneType } from '../types';
 
 export const DEFAULT_WEATHER_CONFIG: WeatherWaterConfig = {
   weather: 'sunny',
@@ -236,3 +236,71 @@ export const DEFAULT_LIGHTING_DEVICES: LightingDevice[] = [
 export function generateLightingDeviceId(): string {
   return `light-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
+
+export function generateRoutePointId(): string {
+  return `rp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export const RIVER_ZONE_LABELS: Record<RiverZoneType, string> = {
+  calm: '静水区',
+  ripple: '微波区',
+  rapid: '急流区',
+  torrent: '洪峰区',
+  obstacle: '障碍区',
+  shallow: '浅滩区',
+  narrows: '狭窄航道',
+};
+
+export const RIVER_ZONE_COLORS: Record<RiverZoneType, string> = {
+  calm: '#69db7c',
+  ripple: '#74c0fc',
+  rapid: '#ffa94d',
+  torrent: '#ff6b6b',
+  obstacle: '#868e96',
+  shallow: '#ffd43b',
+  narrows: '#da77f2',
+};
+
+export const RIVER_ZONE_RISK_SCORES: Record<RiverZoneType, number> = {
+  calm: 95,
+  ripple: 80,
+  rapid: 45,
+  torrent: 15,
+  obstacle: 20,
+  shallow: 55,
+  narrows: 50,
+};
+
+export const RIVER_ZONE_FLOW_SPEEDS: Record<RiverZoneType, number> = {
+  calm: 1.0,
+  ripple: 2.0,
+  rapid: 5.0,
+  torrent: 9.0,
+  obstacle: 1.5,
+  shallow: 0.5,
+  narrows: 4.0,
+};
+
+export const DEFAULT_RIVER_ZONES: RiverZone[] = [
+  { id: 'zone-1', type: 'calm', x: 0, y: 0, width: 200, height: 400, name: '出发港静水区', baseFlowSpeed: 1.0, baseRiskScore: 95 },
+  { id: 'zone-2', type: 'ripple', x: 0, y: 400, width: 200, height: 200, name: '碧波过渡区', baseFlowSpeed: 2.0, baseRiskScore: 80 },
+  { id: 'zone-3', type: 'rapid', x: 0, y: 600, width: 200, height: 250, name: '虎跳峡急流', baseFlowSpeed: 5.0, baseRiskScore: 45 },
+  { id: 'zone-4', type: 'calm', x: 0, y: 850, width: 200, height: 300, name: '月牙湾静水', baseFlowSpeed: 1.0, baseRiskScore: 95 },
+  { id: 'zone-5', type: 'narrows', x: 0, y: 1150, width: 200, height: 200, name: '龙门峡窄道', baseFlowSpeed: 4.0, baseRiskScore: 50 },
+  { id: 'zone-6', type: 'shallow', x: 0, y: 1350, width: 200, height: 200, name: '金沙浅滩', baseFlowSpeed: 0.5, baseRiskScore: 55 },
+  { id: 'zone-7', type: 'torrent', x: 0, y: 1550, width: 200, height: 250, name: '怒涛洪峰段', baseFlowSpeed: 9.0, baseRiskScore: 15 },
+  { id: 'zone-8', type: 'obstacle', x: 0, y: 1800, width: 200, height: 200, name: '暗礁密布区', baseFlowSpeed: 1.5, baseRiskScore: 20 },
+  { id: 'zone-9', type: 'ripple', x: 0, y: 2000, width: 200, height: 200, name: '翠谷微波段', baseFlowSpeed: 2.0, baseRiskScore: 80 },
+  { id: 'zone-10', type: 'calm', x: 0, y: 2200, width: 200, height: 300, name: '终点港静水区', baseFlowSpeed: 1.0, baseRiskScore: 95 },
+];
+
+export const ROUTE_PLAN_TAGS = {
+  fastest: '最快路线',
+  safest: '最安全路线',
+  balanced: '均衡路线',
+  notRecommended: '不建议出航',
+};
+
+export const RIVER_MAP_WIDTH = 200;
+export const RIVER_MAP_HEIGHT = 2500;
+export const RIVER_MAP_SCALE = 0.25;

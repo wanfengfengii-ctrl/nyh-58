@@ -13,7 +13,7 @@ import {
   Box,
 } from '@mantine/core';
 import { IconShip } from '@tabler/icons-react';
-import type { RaftConfig, Cargo, SavedScheme, PhysicsState, SailingReport, LoadingSuggestion, PlaybackState, PlaybackFrame, WaterFlowMode, WeatherReport, WeatherWaterConfig } from './types';
+import type { RaftConfig, Cargo, SavedScheme, PhysicsState, SailingReport, LoadingSuggestion, PlaybackState, PlaybackFrame, WaterFlowMode, WeatherReport, WeatherWaterConfig, NightNavigationReport } from './types';
 import { DEFAULT_CONFIG, DEFAULT_CARGOS } from './constants';
 import { calculateBuoyancy, calculateStability, validateConfig, validateCargos } from './utils/physics';
 import { clampCargoToBounds, clampAllCargosToBounds, areAllCargosWithinBounds, getOutOfBoundsCargos } from './utils/raftGeometry';
@@ -24,6 +24,7 @@ import { generateLoadingSuggestions } from './utils/loadingSuggestion';
 import { PlaybackManager } from './utils/playback';
 import { StorageManager } from './utils/storage';
 import { generateWeatherReport, getAdjustedStability, calculateAdjustedFlowSpeed, calculateWeatherEffects } from './utils/weatherWater';
+import { generateNightNavigationReport } from './utils/nightNavigation';
 import { RaftTopView } from './components/RaftTopView';
 import { RaftSideView } from './components/RaftSideView';
 import { ControlPanel } from './components/ControlPanel';
@@ -35,6 +36,7 @@ import { SailingReportPanel } from './components/SailingReportPanel';
 import { LoadingSuggestionPanel } from './components/LoadingSuggestionPanel';
 import { PlaybackPanel } from './components/PlaybackPanel';
 import { WeatherWarningPanel } from './components/WeatherWarningPanel';
+import { RoutePlanningPanel } from './components/RoutePlanningPanel';
 
 const storageManager = new StorageManager();
 const playbackManager = new PlaybackManager();
@@ -65,6 +67,7 @@ function App() {
   const [sailingReport, setSailingReport] = useState<SailingReport | null>(null);
   const [loadingSuggestions, setLoadingSuggestions] = useState<LoadingSuggestion[]>([]);
   const [weatherReport, setWeatherReport] = useState<WeatherReport | null>(null);
+  const [nightNavigationReport, setNightNavigationReport] = useState<NightNavigationReport | null>(null);
 
   const physicsEngineRef = useRef<RaftPhysicsEngine | null>(null);
   const waterFlowSystemRef = useRef<WaterFlowSystem | null>(null);
@@ -191,12 +194,17 @@ function App() {
   }, [config, baseStability]);
 
   useEffect(() => {
-    const report = generateSailingReport(config, cargos, buoyancy, stability, allCargosInBounds, weatherReport || undefined);
+    const nightReport = generateNightNavigationReport(config, cargos, weatherReport || undefined);
+    setNightNavigationReport(nightReport);
+  }, [config, cargos, weatherReport]);
+
+  useEffect(() => {
+    const report = generateSailingReport(config, cargos, buoyancy, stability, allCargosInBounds, weatherReport || undefined, nightNavigationReport || undefined);
     setSailingReport(report);
 
     const suggestions = generateLoadingSuggestions(config, cargos, buoyancy, stability);
     setLoadingSuggestions(suggestions);
-  }, [config, cargos, buoyancy, stability, allCargosInBounds, weatherReport]);
+  }, [config, cargos, buoyancy, stability, allCargosInBounds, weatherReport, nightNavigationReport]);
 
   const gameLoop = useCallback((timestamp: number) => {
     if (!physicsRunning || !physicsEngineRef.current) {
@@ -540,6 +548,7 @@ function App() {
             <Tabs.List>
               <Tabs.Tab value="simulation">仿真模式</Tabs.Tab>
               <Tabs.Tab value="analysis">分析报告</Tabs.Tab>
+              <Tabs.Tab value="route">航线规划</Tabs.Tab>
               <Tabs.Tab value="playback">方案回放</Tabs.Tab>
             </Tabs.List>
           </Tabs>
@@ -656,6 +665,7 @@ function App() {
                     currentBuoyancy={buoyancy}
                     currentStability={stability}
                     currentWeatherReport={weatherReport!}
+                    currentNightNavigationReport={nightNavigationReport ?? undefined}
                     onLoadScheme={handleLoadScheme}
                     isValid={isValid && stability.isSailable}
                   />
@@ -701,6 +711,16 @@ function App() {
                 </Stack>
               </Grid.Col>
             </Grid>
+          )}
+
+          {activeTab === 'route' && (
+            <RoutePlanningPanel
+              raftConfig={config}
+              buoyancy={buoyancy}
+              stability={stability}
+              weatherReport={weatherReport}
+              nightNavigationReport={nightNavigationReport}
+            />
           )}
 
           {activeTab === 'playback' && (

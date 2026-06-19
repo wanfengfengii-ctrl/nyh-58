@@ -287,3 +287,78 @@ export interface RaftDimensions {
   top: number;
   bottom: number;
 }
+
+export type RiverZoneType = 'calm' | 'ripple' | 'rapid' | 'torrent' | 'obstacle' | 'shallow' | 'narrows';
+
+export type RoutePointType = 'start' | 'end' | 'waypoint';
+
+export interface RiverZone {
+  id: string;
+  type: RiverZoneType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  name: string;
+  baseFlowSpeed: number;
+  baseRiskScore: number;
+}
+
+export interface RoutePoint {
+  id: string;
+  x: number;
+  y: number;
+  type: RoutePointType;
+  name: string;
+}
+
+export interface RouteSegment {
+  fromPointId: string;
+  toPointId: string;
+  distance: number;
+  flowSpeed: number;
+  safetyScore: number;
+  riskLevel: RiskLevel;
+  estimatedTime: number;
+  zoneTypes: RiverZoneType[];
+  hazards: RouteHazard[];
+}
+
+export interface RouteHazard {
+  id: string;
+  type: 'rapid' | 'strong_wind' | 'low_visibility' | 'obstacle' | 'shallow' | 'narrows' | 'overload' | 'instability';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  position: { x: number; y: number };
+}
+
+export interface RoutePlan {
+  id: string;
+  name: string;
+  description: string;
+  points: RoutePoint[];
+  segments: RouteSegment[];
+  totalDistance: number;
+  totalEstimatedTime: number;
+  overallSafetyScore: number;
+  overallRiskLevel: RiskLevel;
+  isNotRecommended: boolean;
+  warnings: RouteHazard[];
+  tags: string[];
+}
+
+export interface RoutePlanningInput {
+  points: RoutePoint[];
+  raftConfig: RaftConfig;
+  buoyancy: BuoyancyResult;
+  stability: StabilityResult;
+  weatherReport: WeatherReport | null;
+  nightNavigationReport: NightNavigationReport | null;
+  riverZones: RiverZone[];
+}
+
+export interface RoutePlanningResult {
+  routes: RoutePlan[];
+  recommendedRouteIndex: number;
+  riverZones: RiverZone[];
+}

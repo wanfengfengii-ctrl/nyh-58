@@ -23,7 +23,7 @@ import { generateSailingReport } from './utils/sailingReport';
 import { generateLoadingSuggestions } from './utils/loadingSuggestion';
 import { PlaybackManager } from './utils/playback';
 import { StorageManager } from './utils/storage';
-import { generateWeatherReport, getAdjustedStability } from './utils/weatherWater';
+import { generateWeatherReport, getAdjustedStability, calculateAdjustedFlowSpeed, calculateWeatherEffects } from './utils/weatherWater';
 import { RaftTopView } from './components/RaftTopView';
 import { RaftSideView } from './components/RaftSideView';
 import { ControlPanel } from './components/ControlPanel';
@@ -135,6 +135,11 @@ function App() {
     () => calculateBuoyancy(config, cargos),
     [config, cargos]
   );
+
+  const adjustedFlowSpeed = useMemo(() => {
+    const effects = calculateWeatherEffects(config.weatherWater);
+    return calculateAdjustedFlowSpeed(config.waterFlowSpeed, effects);
+  }, [config.waterFlowSpeed, config.weatherWater]);
 
   const baseStability = useMemo(
     () => calculateStability(config, cargos, buoyancy),
@@ -555,6 +560,7 @@ function App() {
                     waterFlowMode={config.waterFlowMode}
                     onWaterFlowModeChange={handleWaterFlowModeChange}
                     waterFlowSpeed={config.waterFlowSpeed}
+                    adjustedWaterFlowSpeed={adjustedFlowSpeed}
                     onWaterFlowSpeedChange={handleWaterFlowSpeedChange}
                     pulseIntensity={config.pulseIntensity}
                     onPulseIntensityChange={handlePulseIntensityChange}
@@ -568,6 +574,7 @@ function App() {
                     onCargosChange={setCargos}
                     selectedCargoId={selectedCargoId}
                     onSelectedCargoChange={setSelectedCargoId}
+                    adjustedWaterFlowSpeed={adjustedFlowSpeed}
                   />
                 </Stack>
               </Grid.Col>

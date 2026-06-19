@@ -1,4 +1,5 @@
-import type { RaftConfig, WaterFlowMode } from '../types';
+import type { RaftConfig, WaterFlowMode, WeatherWaterEffects } from '../types';
+import { calculateWeatherEffects } from './weatherWater';
 
 const PERM = new Uint8Array(512);
 (function initPerm() {
@@ -48,14 +49,27 @@ function perlin2(x: number, y: number): number {
 
 export class WaterFlowSystem {
   private config: RaftConfig;
+  private weatherEffects: WeatherWaterEffects = {
+    flowSpeedMultiplier: 1.0,
+    stabilityPenalty: 0,
+    waveHeight: 0,
+    visibility: 1.0,
+  };
 
   constructor(config: RaftConfig) {
     this.config = config;
+    this.updateWeatherEffects();
+  }
+
+  private updateWeatherEffects(): void {
+    if (this.config.weatherWater) {
+      this.weatherEffects = calculateWeatherEffects(this.config.weatherWater);
+    }
   }
 
   getFlowVelocity(time: number): { x: number; y: number } {
     const mode = this.config.waterFlowMode;
-    const baseSpeed = this.config.waterFlowSpeed;
+    const baseSpeed = this.config.waterFlowSpeed * this.weatherEffects.flowSpeedMultiplier;
 
     switch (mode) {
       case 'steady':
@@ -82,9 +96,14 @@ export class WaterFlowSystem {
 
   updateConfig(config: RaftConfig): void {
     this.config = config;
+    this.updateWeatherEffects();
   }
 
   getMode(): WaterFlowMode {
     return this.config.waterFlowMode;
+  }
+
+  getWeatherEffects(): WeatherWaterEffects {
+    return { ...this.weatherEffects };
   }
 }

@@ -28,6 +28,7 @@ interface ControlPanelProps {
   onCargosChange: (cargos: Cargo[]) => void;
   selectedCargoId: string | null;
   onSelectedCargoChange: (id: string | null) => void;
+  adjustedWaterFlowSpeed?: number;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -37,6 +38,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onCargosChange,
   selectedCargoId,
   onSelectedCargoChange,
+  adjustedWaterFlowSpeed,
 }) => {
   const updateConfig = (key: keyof RaftConfig, value: number) => {
     onConfigChange({ ...config, [key]: value });
@@ -181,7 +183,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         <Stack gap="sm">
           <div>
             <Group justify="space-between" mb={5}>
-              <Text size="sm">水流速度</Text>
+              <Text size="sm">基准水流速度</Text>
               <Badge color="cyan">{config.waterFlowSpeed.toFixed(1)} m/s</Badge>
             </Group>
             <Slider
@@ -191,6 +193,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               max={10}
               step={0.1}
             />
+            {adjustedWaterFlowSpeed !== undefined && Math.abs(adjustedWaterFlowSpeed - config.waterFlowSpeed) > 0.01 && (
+              <Group justify="space-between" mt={8}>
+                <Text size="xs" c="orange">
+                  实际水流速度（受天气影响）
+                </Text>
+                <Badge color="orange" variant="filled">
+                  {adjustedWaterFlowSpeed.toFixed(1)} m/s
+                </Badge>
+              </Group>
+            )}
           </div>
 
           <div>

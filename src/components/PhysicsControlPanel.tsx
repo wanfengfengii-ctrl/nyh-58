@@ -32,6 +32,7 @@ interface PhysicsControlPanelProps {
   waterFlowMode: WaterFlowMode;
   onWaterFlowModeChange: (mode: WaterFlowMode) => void;
   waterFlowSpeed: number;
+  adjustedWaterFlowSpeed?: number;
   onWaterFlowSpeedChange: (speed: number) => void;
   pulseIntensity?: number;
   onPulseIntensityChange?: (intensity: number) => void;
@@ -51,6 +52,7 @@ export const PhysicsControlPanel: React.FC<PhysicsControlPanelProps> = ({
   waterFlowMode,
   onWaterFlowModeChange,
   waterFlowSpeed,
+  adjustedWaterFlowSpeed,
   onWaterFlowSpeedChange,
   pulseIntensity,
   onPulseIntensityChange,
@@ -169,7 +171,7 @@ export const PhysicsControlPanel: React.FC<PhysicsControlPanelProps> = ({
 
           <div>
             <Group justify="space-between" mb={5}>
-              <Text size="sm">水流速度</Text>
+              <Text size="sm">基准水流速度</Text>
               <Badge color="cyan">{waterFlowSpeed.toFixed(1)} m/s</Badge>
             </Group>
             <Slider
@@ -184,6 +186,16 @@ export const PhysicsControlPanel: React.FC<PhysicsControlPanelProps> = ({
                 { value: 10, label: '10' },
               ]}
             />
+            {adjustedWaterFlowSpeed !== undefined && Math.abs(adjustedWaterFlowSpeed - waterFlowSpeed) > 0.01 && (
+              <Group justify="space-between" mt={8}>
+                <Text size="xs" c="orange">
+                  实际水流速度（受天气影响）
+                </Text>
+                <Badge color="orange" variant="filled">
+                  {adjustedWaterFlowSpeed.toFixed(1)} m/s
+                </Badge>
+              </Group>
+            )}
           </div>
 
           {waterFlowMode === 'pulse' && pulseIntensity !== undefined && (

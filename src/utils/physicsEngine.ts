@@ -1,7 +1,8 @@
 import Matter from 'matter-js';
-import type { RaftConfig, Cargo, PhysicsState, CargoPhysicsState } from '../types';
+import type { RaftConfig, Cargo, PhysicsState, CargoPhysicsState, WeatherWaterEffects } from '../types';
 import { PHYSICS_CONSTANTS } from '../constants';
 import { calculateRaftDimensions, generateBambooTubes, calculateTubeVolume } from './raftGeometry';
+import { calculateWeatherEffects } from './weatherWater';
 
 const { Engine, World, Bodies, Body, Events, Vector } = Matter;
 
@@ -18,13 +19,26 @@ export class RaftPhysicsEngine {
   private time = 0;
   private raftInitialY = 0;
   private tubeBodies: Matter.Body[] = [];
+  private weatherEffects: WeatherWaterEffects = {
+    flowSpeedMultiplier: 1.0,
+    stabilityPenalty: 0,
+    waveHeight: 0,
+    visibility: 1.0,
+  };
 
   constructor(config: RaftConfig) {
     this.config = config;
     this.engine = Engine.create();
     this.world = this.engine.world;
     this.engine.gravity.y = PHYSICS_CONSTANTS.GRAVITY;
+    this.updateWeatherEffects();
     this.createRaft();
+  }
+
+  private updateWeatherEffects(): void {
+    if (this.config.weatherWater) {
+      this.weatherEffects = calculateWeatherEffects(this.config.weatherWater);
+    }
   }
 
   private createRaft(): void {
@@ -230,7 +244,7 @@ export class RaftPhysicsEngine {
   private applyWaterFlow(): void {
     if (!this.raftBody) return;
 
-    let flowSpeed = this.config.waterFlowSpeed;
+    let flowSpeed = this.config.waterFlowSpeed * this.weatherEffects.flowSpeedMultiplier;
     const mode = this.config.waterFlowMode;
 
     if (mode === 'pulse') {
@@ -252,12 +266,89 @@ export class RaftPhysicsEngine {
         Body.applyForce(cargoBody, cargoBody.position, { x: flowForce.x * 0.8, y: 0 });
       }
     });
+
+    this.applyWindForce();
+    this.applyWaveTurbulence();
+  }
+
+  private applyWindForce(): void {
+    if (!this.raftBody) return;
+
+    const windConfig = this.config.weatherWater?.wind;
+    if (!windConfig || windConfig === 'calm') return;
+
+    const windStrengthMap: Record<string, number> = {
+      breeze: 0.003,
+      windy: 0.012,
+      strong: 0.03,
+    };
+    const windStrength = windStrengthMap[windConfig] || 0;
+    if (windStrength === 0) return;
+
+    const gustFactor = 1 + Math.sin(this.time * 3) * 0.3 + Math.sin(this.time * 7) * 0.2;
+    const windForceX = windStrength * gustFactor;
+    const windForceY = windStrength * 0.1 * Math.sin(this.time * 5);
+
+    if (this.raftBody.position.y > this.waterLevel - 1.0) {
+      Body.applyForce(this.raftBody, {
+        x: this.raftBody.position.x,
+        y: this.raftBody.position.y - 0.3,
+      }, { x: windForceX, y: windForceY });
+    }
+
+    this.cargoBodies.forEach((cargoBody) => {
+      if (cargoBody.position.y > this.waterLevel - 1.0) {
+        const cargoArea = (cargoBody.bounds.max.x - cargoBody.bounds.min.x) *
+                          (cargoBody.bounds.max.y - cargoBody.bounds.min.y);
+        const cargoWindFactor = Math.min(1.5, cargoArea * 0.5);
+        Body.applyForce(cargoBody, cargoBody.position, {
+          x: windForceX * 0.6 * cargoWindFactor,
+          y: windForceY * 0.3 * cargoWindFactor,
+        });
+      }
+    });
+  }
+
+  private applyWaveTurbulence(): void {
+    if (!this.raftBody) return;
+
+    const waveHeight = this.weatherEffects.waveHeight;
+    if (waveHeight <= 0.05) return;
+
+    const turbulenceStrength = waveHeight * 0.02;
+    const wavePhaseX = Math.sin(this.time * 2.5 + this.raftBody.position.x * 0.5);
+    const wavePhaseY = Math.cos(this.time * 3 + this.raftBody.position.x * 0.3);
+
+    const turbulenceForceX = wavePhaseX * turbulenceStrength;
+    const turbulenceForceY = wavePhaseY * turbulenceStrength * 0.5;
+
+    const leftPoint = { x: this.raftBody.position.x - 0.5, y: this.raftBody.position.y };
+    const rightPoint = { x: this.raftBody.position.x + 0.5, y: this.raftBody.position.y };
+
+    Body.applyForce(this.raftBody, leftPoint, {
+      x: turbulenceForceX * 0.5,
+      y: turbulenceForceY + Math.sin(this.time * 4) * turbulenceStrength * 0.3,
+    });
+    Body.applyForce(this.raftBody, rightPoint, {
+      x: turbulenceForceX * 0.5,
+      y: -turbulenceForceY + Math.cos(this.time * 4 + 1) * turbulenceStrength * 0.3,
+    });
+
+    this.cargoBodies.forEach((cargoBody) => {
+      const cargoTurbulence = turbulenceStrength * 0.4;
+      Body.applyForce(cargoBody, cargoBody.position, {
+        x: Math.sin(this.time * 3 + cargoBody.position.x) * cargoTurbulence,
+        y: Math.cos(this.time * 2.5 + cargoBody.position.y) * cargoTurbulence * 0.3,
+      });
+    });
   }
 
   private updateWaterLevel(): void {
-    const baseWave = Math.sin(this.time * 0.5) * 0.05;
-    const smallRipple = Math.sin(this.time * 2) * 0.02;
-    this.waterLevel = baseWave + smallRipple;
+    const waveHeight = this.weatherEffects.waveHeight;
+    const baseWave = Math.sin(this.time * 0.5) * Math.max(0.05, waveHeight);
+    const smallRipple = Math.sin(this.time * 2) * Math.max(0.02, waveHeight * 0.4);
+    const highFreqWave = Math.sin(this.time * 4) * Math.max(0.01, waveHeight * 0.2);
+    this.waterLevel = baseWave + smallRipple + highFreqWave;
   }
 
   private calculateDynamicDraftDepth(): number {
@@ -448,6 +539,7 @@ export class RaftPhysicsEngine {
 
   public updateConfig(config: Partial<RaftConfig>): void {
     this.config = { ...this.config, ...config };
+    this.updateWeatherEffects();
     this.createRaft();
 
     this.cargos.forEach((cargo) => {
@@ -459,6 +551,10 @@ export class RaftPhysicsEngine {
         Body.setAngle(body, 0);
       }
     });
+  }
+
+  public getWeatherEffects(): WeatherWaterEffects {
+    return { ...this.weatherEffects };
   }
 
   public getRaftBody(): Matter.Body | null {

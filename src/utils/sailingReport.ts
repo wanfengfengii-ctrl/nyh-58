@@ -1,22 +1,32 @@
-import type { RaftConfig, Cargo, BuoyancyResult, StabilityResult, SailingReport, SailingReason } from '../types';
+import type { RaftConfig, Cargo, BuoyancyResult, StabilityResult, SailingReport, SailingReason, WeatherReport } from '../types';
 import { isCargoWithinBounds } from './raftGeometry';
+import { calculateAdjustedFlowSpeed } from './weatherWater';
 
 export function generateSailingReport(
   config: RaftConfig,
   cargos: Cargo[],
   buoyancy: BuoyancyResult,
   stability: StabilityResult,
-  allInBounds: boolean
+  allInBounds: boolean,
+  weatherReport?: WeatherReport
 ): SailingReport {
   const reasons: SailingReason[] = [];
   let score = 0;
+
+  const adjustedFlowSpeed = weatherReport
+    ? calculateAdjustedFlowSpeed(config.waterFlowSpeed, weatherReport.effects)
+    : config.waterFlowSpeed;
 
   reasons.push(...analyzeLoadStatus(buoyancy));
   reasons.push(...analyzeStability(stability));
   reasons.push(...analyzeCenterOfGravity(stability));
   reasons.push(...analyzeBounds(allInBounds, cargos, config));
-  reasons.push(...analyzeWaterFlow(config));
+  reasons.push(...analyzeWaterFlow(config, adjustedFlowSpeed, weatherReport));
   reasons.push(...analyzeDraftDepth(buoyancy, config));
+
+  if (weatherReport) {
+    reasons.push(...analyzeWeatherConditions(weatherReport));
+  }
 
   const errorCount = reasons.filter((r) => r.type === 'error').length;
   const warningCount = reasons.filter((r) => r.type === 'warning').length;
@@ -30,7 +40,8 @@ export function generateSailingReport(
     )
   );
 
-  const canSail = errorCount === 0 && stability.isSailable && allInBounds && !buoyancy.isOverloaded;
+  const weatherCanSail = weatherReport ? weatherReport.canSail : true;
+  const canSail = errorCount === 0 && stability.isSailable && allInBounds && !buoyancy.isOverloaded && weatherCanSail;
 
   const summary = generateSummary(canSail, errorCount, warningCount, buoyancy, stability);
 
@@ -210,9 +221,25 @@ function analyzeBounds(allInBounds: boolean, cargos: Cargo[], config: RaftConfig
   return reasons;
 }
 
-function analyzeWaterFlow(config: RaftConfig): SailingReason[] {
+function analyzeWaterFlow(
+  config: RaftConfig,
+  adjustedFlowSpeed: number,
+  weatherReport?: WeatherReport
+): SailingReason[] {
   const reasons: SailingReason[] = [];
-  const flowSpeed = config.waterFlowSpeed;
+  const baseFlowSpeed = config.waterFlowSpeed;
+  const flowSpeed = adjustedFlowSpeed;
+
+  if (weatherReport && Math.abs(flowSpeed - baseFlowSpeed) > 0.1) {
+    reasons.push({
+      id: 'flow-adjusted',
+      type: 'info',
+      title: '水流速度已调整',
+      description: `受天气水况影响，实际水流速度从 ${baseFlowSpeed.toFixed(1)}m/s 调整为 ${flowSpeed.toFixed(1)}m/s（${weatherReport.effects.flowSpeedMultiplier.toFixed(2)}倍）`,
+      value: flowSpeed,
+      threshold: baseFlowSpeed,
+    });
+  }
 
   if (flowSpeed > 8) {
     reasons.push({
@@ -326,4 +353,87 @@ function generateSummary(
   }
 
   return '各项指标良好，可以安全出航。祝您航行顺利！';
+}
+
+function analyzeWeatherConditions(weatherReport: WeatherReport): SailingReason[] {
+  const reasons: SailingReason[] = [];
+  const { riskLevel, effects } = weatherReport;
+
+  if (weatherReport.warnings.length > 0) {
+    const weatherWarnings = weatherReport.warnings.filter(
+      (w) => w.type === 'error' || w.type === 'warning'
+    );
+    weatherWarnings.forEach((warning) => {
+      reasons.push({
+        id: `weather-warning-${warning.id}`,
+        type: warning.type,
+        title: `环境预警: ${warning.title}`,
+        description: warning.description,
+        value: effects.stabilityPenalty,
+        threshold: 10,
+      });
+    });
+  }
+
+  if (riskLevel === 'danger') {
+    reasons.push({
+      id: 'weather-risk-danger',
+      type: 'error',
+      title: '环境风险极高',
+      description: `当前环境风险等级为"危险"，稳定性惩罚 ${effects.stabilityPenalty} 分，水流速度倍率 ${effects.flowSpeedMultiplier.toFixed(2)}，禁止出航。`,
+      value: effects.stabilityPenalty,
+      threshold: 40,
+    });
+  } else if (riskLevel === 'warning') {
+    reasons.push({
+      id: 'weather-risk-warning',
+      type: 'warning',
+      title: '环境风险较高',
+      description: `当前环境风险等级为"警告"，稳定性惩罚 ${effects.stabilityPenalty} 分，水流速度倍率 ${effects.flowSpeedMultiplier.toFixed(2)}，不建议出航。`,
+      value: effects.stabilityPenalty,
+      threshold: 25,
+    });
+  } else if (riskLevel === 'caution') {
+    reasons.push({
+      id: 'weather-risk-caution',
+      type: 'info',
+      title: '环境有一定风险',
+      description: `当前环境风险等级为"注意"，稳定性惩罚 ${effects.stabilityPenalty} 分，水流速度倍率 ${effects.flowSpeedMultiplier.toFixed(2)}，请谨慎驾驶。`,
+      value: effects.stabilityPenalty,
+      threshold: 10,
+    });
+  } else {
+    reasons.push({
+      id: 'weather-risk-safe',
+      type: 'success',
+      title: '环境条件良好',
+      description: `当前环境风险等级为"安全"，稳定性惩罚 ${effects.stabilityPenalty} 分，水流速度倍率 ${effects.flowSpeedMultiplier.toFixed(2)}，适合航行。`,
+      value: effects.stabilityPenalty,
+      threshold: 10,
+    });
+  }
+
+  if (effects.visibility < 0.7) {
+    reasons.push({
+      id: 'weather-visibility',
+      type: effects.visibility < 0.5 ? 'error' : 'warning',
+      title: '能见度不足',
+      description: `当前能见度为 ${(effects.visibility * 100).toFixed(0)}%，${effects.visibility < 0.5 ? '严重影响航行安全' : '对航行有一定影响'}。`,
+      value: effects.visibility,
+      threshold: 0.7,
+    });
+  }
+
+  if (effects.waveHeight > 0.2) {
+    reasons.push({
+      id: 'weather-wave',
+      type: effects.waveHeight > 0.4 ? 'error' : 'warning',
+      title: '浪高较大',
+      description: `当前浪高约 ${effects.waveHeight.toFixed(2)}m，${effects.waveHeight > 0.4 ? '可能导致竹筏倾覆' : '会影响竹筏稳定性'}。`,
+      value: effects.waveHeight,
+      threshold: 0.2,
+    });
+  }
+
+  return reasons;
 }

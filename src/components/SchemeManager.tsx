@@ -23,7 +23,8 @@ import {
   IconFileDescription,
   IconGitCompare,
 } from '@tabler/icons-react';
-import type { SavedScheme, RaftConfig, Cargo, BuoyancyResult, StabilityResult } from '../types';
+import type { SavedScheme, RaftConfig, Cargo, BuoyancyResult, StabilityResult, WeatherReport } from '../types';
+import { RISK_LABELS, RISK_COLORS } from '../constants';
 
 interface SchemeManagerProps {
   schemes: SavedScheme[];
@@ -32,6 +33,7 @@ interface SchemeManagerProps {
   currentCargos: Cargo[];
   currentBuoyancy: BuoyancyResult;
   currentStability: StabilityResult;
+  currentWeatherReport: WeatherReport;
   onLoadScheme: (scheme: SavedScheme) => void;
   isValid: boolean;
 }
@@ -43,6 +45,7 @@ export const SchemeManager: React.FC<SchemeManagerProps> = ({
   currentCargos,
   currentBuoyancy,
   currentStability,
+  currentWeatherReport,
   onLoadScheme,
   isValid,
 }) => {
@@ -62,6 +65,7 @@ export const SchemeManager: React.FC<SchemeManagerProps> = ({
       cargos: currentCargos.map((c) => ({ ...c })),
       buoyancy: { ...currentBuoyancy },
       stability: { ...currentStability },
+      weatherReport: { ...currentWeatherReport },
     };
 
     onSchemesChange([...schemes, newScheme]);
@@ -205,6 +209,15 @@ export const SchemeManager: React.FC<SchemeManagerProps> = ({
                   <Text size="xs" c="dimmed">
                     载重: {(scheme.buoyancy.loadRatio * 100).toFixed(1)}%
                   </Text>
+                  {scheme.weatherReport && (
+                    <Badge
+                      size="sm"
+                      color={RISK_COLORS[scheme.weatherReport.riskLevel]}
+                      variant="light"
+                    >
+                      {RISK_LABELS[scheme.weatherReport.riskLevel]}
+                    </Badge>
+                  )}
                   <Badge
                     size="sm"
                     color={scheme.stability.isSailable ? 'green' : 'red'}
@@ -340,6 +353,36 @@ export const SchemeManager: React.FC<SchemeManagerProps> = ({
                     <Badge color={s.stability.tiltRisk === 'low' ? 'green' : s.stability.tiltRisk === 'medium' ? 'yellow' : 'red'}>
                       {s.stability.tiltRisk === 'low' ? '低' : s.stability.tiltRisk === 'medium' ? '中' : '高'}
                     </Badge>
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td>天气状况</td>
+                {compareSchemes.map((s) => (
+                  <td key={s.id}>
+                    {s.weatherReport ? (
+                      <Badge color={RISK_COLORS[s.weatherReport.riskLevel]} variant="light">
+                        {RISK_LABELS[s.weatherReport.riskLevel]}
+                      </Badge>
+                    ) : (
+                      <Text size="xs" c="dimmed">未记录</Text>
+                    )}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td>环境安全分</td>
+                {compareSchemes.map((s) => (
+                  <td key={s.id}>
+                    {s.weatherReport ? (
+                      <Badge
+                        color={s.weatherReport.riskScore > 70 ? 'green' : s.weatherReport.riskScore > 40 ? 'yellow' : 'red'}
+                      >
+                        {s.weatherReport.riskScore.toFixed(0)} 分
+                      </Badge>
+                    ) : (
+                      <Text size="xs" c="dimmed">未记录</Text>
+                    )}
                   </td>
                 ))}
               </tr>

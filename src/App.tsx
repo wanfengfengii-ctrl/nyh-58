@@ -13,7 +13,7 @@ import {
   Box,
 } from '@mantine/core';
 import { IconShip } from '@tabler/icons-react';
-import type { RaftConfig, Cargo, SavedScheme, PhysicsState, SailingReport, LoadingSuggestion, PlaybackState, PlaybackFrame, WaterFlowMode } from './types';
+import type { RaftConfig, Cargo, SavedScheme, PhysicsState, SailingReport, LoadingSuggestion, PlaybackState, PlaybackFrame, WaterFlowMode, WeatherReport, WeatherWaterConfig } from './types';
 import { DEFAULT_CONFIG, DEFAULT_CARGOS } from './constants';
 import { calculateBuoyancy, calculateStability, validateConfig, validateCargos } from './utils/physics';
 import { clampCargoToBounds, clampAllCargosToBounds, areAllCargosWithinBounds, getOutOfBoundsCargos } from './utils/raftGeometry';
@@ -23,6 +23,7 @@ import { generateSailingReport } from './utils/sailingReport';
 import { generateLoadingSuggestions } from './utils/loadingSuggestion';
 import { PlaybackManager } from './utils/playback';
 import { StorageManager } from './utils/storage';
+import { generateWeatherReport, getAdjustedStability } from './utils/weatherWater';
 import { RaftTopView } from './components/RaftTopView';
 import { RaftSideView } from './components/RaftSideView';
 import { ControlPanel } from './components/ControlPanel';
@@ -33,6 +34,7 @@ import { PhysicsControlPanel } from './components/PhysicsControlPanel';
 import { SailingReportPanel } from './components/SailingReportPanel';
 import { LoadingSuggestionPanel } from './components/LoadingSuggestionPanel';
 import { PlaybackPanel } from './components/PlaybackPanel';
+import { WeatherWarningPanel } from './components/WeatherWarningPanel';
 
 const storageManager = new StorageManager();
 const playbackManager = new PlaybackManager();
@@ -62,6 +64,7 @@ function App() {
 
   const [sailingReport, setSailingReport] = useState<SailingReport | null>(null);
   const [loadingSuggestions, setLoadingSuggestions] = useState<LoadingSuggestion[]>([]);
+  const [weatherReport, setWeatherReport] = useState<WeatherReport | null>(null);
 
   const physicsEngineRef = useRef<RaftPhysicsEngine | null>(null);
   const waterFlowSystemRef = useRef<WaterFlowSystem | null>(null);
@@ -133,16 +136,28 @@ function App() {
     [config, cargos]
   );
 
+  const baseStability = useMemo(
+    () => calculateStability(config, cargos, buoyancy),
+    [config, cargos, buoyancy]
+  );
+
   const stability = useMemo(
     () => {
-      const baseStability = calculateStability(config, cargos, buoyancy);
+      if (!weatherReport) {
+        const allInBounds = areAllCargosWithinBounds(cargos, config);
+        return {
+          ...baseStability,
+          isSailable: baseStability.isSailable && allInBounds,
+        };
+      }
+      const adjustedStability = getAdjustedStability(baseStability, weatherReport);
       const allInBounds = areAllCargosWithinBounds(cargos, config);
       return {
-        ...baseStability,
-        isSailable: baseStability.isSailable && allInBounds,
+        ...adjustedStability,
+        isSailable: adjustedStability.isSailable && allInBounds,
       };
     },
-    [config, cargos, buoyancy]
+    [config, cargos, baseStability, weatherReport]
   );
 
   const allCargosInBounds = useMemo(
@@ -166,12 +181,17 @@ function App() {
   const isValid = configErrors.length === 0;
 
   useEffect(() => {
-    const report = generateSailingReport(config, cargos, buoyancy, stability, allCargosInBounds);
+    const weather = generateWeatherReport(config, baseStability);
+    setWeatherReport(weather);
+  }, [config, baseStability]);
+
+  useEffect(() => {
+    const report = generateSailingReport(config, cargos, buoyancy, stability, allCargosInBounds, weatherReport || undefined);
     setSailingReport(report);
 
     const suggestions = generateLoadingSuggestions(config, cargos, buoyancy, stability);
     setLoadingSuggestions(suggestions);
-  }, [config, cargos, buoyancy, stability, allCargosInBounds]);
+  }, [config, cargos, buoyancy, stability, allCargosInBounds, weatherReport]);
 
   const gameLoop = useCallback((timestamp: number) => {
     if (!physicsRunning || !physicsEngineRef.current) {
@@ -436,6 +456,10 @@ function App() {
     setPlaybackFrame(null);
   }, []);
 
+  const handleWeatherWaterChange = useCallback((weatherWater: WeatherWaterConfig) => {
+    setConfig((prev) => ({ ...prev, weatherWater }));
+  }, []);
+
   const displayCargos = playbackCargos ?? physicsCargos ?? cargos;
   const displayRaftAngle = playbackFrame?.raft.angle ?? physicsState?.raftAngle ?? 0;
   const displayWaterLevel = playbackFrame?.waterLevel ?? physicsState?.waterLevel ?? 0;
@@ -624,6 +648,7 @@ function App() {
                     currentCargos={cargos}
                     currentBuoyancy={buoyancy}
                     currentStability={stability}
+                    currentWeatherReport={weatherReport!}
                     onLoadScheme={handleLoadScheme}
                     isValid={isValid && stability.isSailable}
                   />
@@ -634,11 +659,22 @@ function App() {
 
           {activeTab === 'analysis' && (
             <Grid gap="md">
-              <Grid.Col span={{ base: 12, md: 8 }}>
+              <Grid.Col span={{ base: 12, md: 4 }}>
+                <WeatherWarningPanel
+                  config={config.weatherWater}
+                  onConfigChange={handleWeatherWaterChange}
+                  weatherReport={weatherReport}
+                  onRefresh={() => {
+                    const weather = generateWeatherReport(config, baseStability);
+                    setWeatherReport(weather);
+                  }}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 4 }}>
                 <SailingReportPanel
                   report={sailingReport}
                   onRefresh={() => {
-                    const report = generateSailingReport(config, cargos, buoyancy, stability, allCargosInBounds);
+                    const report = generateSailingReport(config, cargos, buoyancy, stability, allCargosInBounds, weatherReport || undefined);
                     setSailingReport(report);
                   }}
                 />

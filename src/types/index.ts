@@ -1,5 +1,58 @@
 export type WaterFlowMode = 'steady' | 'pulse' | 'random';
 
+export type WeatherCondition = 'sunny' | 'cloudy' | 'rainy' | 'stormy';
+export type WaterCondition = 'calm' | 'ripple' | 'rapid' | 'torrent';
+export type WindCondition = 'calm' | 'breeze' | 'windy' | 'strong';
+export type RiskLevel = 'safe' | 'caution' | 'warning' | 'danger';
+
+export interface WeatherWaterConfig {
+  weather: WeatherCondition;
+  water: WaterCondition;
+  wind: WindCondition;
+}
+
+export interface WeatherWaterEffects {
+  flowSpeedMultiplier: number;
+  stabilityPenalty: number;
+  waveHeight: number;
+  visibility: number;
+}
+
+export interface WeatherWarning {
+  id: string;
+  type: 'error' | 'warning' | 'info' | 'success';
+  title: string;
+  description: string;
+  riskLevel: RiskLevel;
+}
+
+export interface WeatherRecommendation {
+  id: string;
+  priority: 'high' | 'medium' | 'low';
+  action: string;
+  description: string;
+}
+
+export interface WeatherReport {
+  config: WeatherWaterConfig;
+  effects: WeatherWaterEffects;
+  riskLevel: RiskLevel;
+  canSail: boolean;
+  warnings: WeatherWarning[];
+  recommendations: WeatherRecommendation[];
+  riskScore: number;
+  summary: string;
+}
+
+export interface WeatherPreset {
+  id: string;
+  name: string;
+  description: string;
+  config: WeatherWaterConfig;
+  riskLevel: RiskLevel;
+  icon: string;
+}
+
 export interface BambooTube {
   id: string;
   x: number;
@@ -31,6 +84,7 @@ export interface RaftConfig {
   waterFlowMode: WaterFlowMode;
   pulseIntensity: number;
   pulseFrequency: number;
+  weatherWater: WeatherWaterConfig;
 }
 
 export interface PhysicsState {
@@ -167,6 +221,7 @@ export interface SavedScheme {
   cargos: Cargo[];
   buoyancy: BuoyancyResult;
   stability: StabilityResult;
+  weatherReport: WeatherReport;
 }
 
 export interface RaftDimensions {
